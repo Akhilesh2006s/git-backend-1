@@ -5,9 +5,9 @@ const mongoose = require("mongoose");
 
 const app = express();
 
-// ✅ Enable CORS for frontend connection
+// ✅ Enable CORS for frontend & ESP32 requests
 const corsOptions = {
-    origin: process.env.FRONTEND_URL || "*",
+    origin: "*", // Allow all origins (for debugging)
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type"]
 };
@@ -40,17 +40,24 @@ app.get("/", (req, res) => {
 
 // ✅ Save GPS Location (ESP32)
 app.get("/update_location", async (req, res) => {
-    const { lat, lon } = req.query;
+    console.log("🔍 Incoming Request Headers:", req.rawHeaders);
+    console.log("🔍 Incoming Request Query Params:", req.query);
 
-    if (!lat || !lon) {
-        return res.status(400).json({ error: "❌ Missing latitude or longitude" });
+    let { lat, lon } = req.query;
+
+    // ✅ Validate and Convert GPS Data
+    lat = parseFloat(lat);
+    lon = parseFloat(lon);
+
+    if (isNaN(lat) || isNaN(lon)) {
+        return res.status(400).json({ error: "❌ Invalid latitude or longitude" });
     }
 
     try {
         const newLocation = new GpsLocation({ lat, lon });
         await newLocation.save();
         console.log(`📡 Location Saved: Lat=${lat}, Lon=${lon}`);
-        res.json({ success: true, lat, lon });
+        res.json({ success: true, message: "✅ Data Received", lat, lon });
     } catch (error) {
         console.error("❌ MongoDB Error:", error);
         res.status(500).json({ error: error.message });
