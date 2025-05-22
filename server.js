@@ -2,16 +2,13 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
-const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
 
 const app = express();
 
 // ✅ Enable CORS for frontend & ESP32 requests
 const corsOptions = {
-    origin: "*",
-    methods: ["GET", "POST", "DELETE"],
+    origin: "*", // Allow all origins (for debugging)
+    methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type"]
 };
 app.use(cors(corsOptions));
@@ -36,44 +33,19 @@ const gpsSchema = new mongoose.Schema({
 });
 const GpsLocation = mongoose.model("GpsLocation", gpsSchema);
 
-// ✅ Profile Image Upload Setup
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
-}
-
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname);
-        const baseName = path.basename(file.originalname, ext);
-        cb(null, baseName + '-' + Date.now() + ext);
-    }
-});
-const upload = multer({ storage });
-
-// ✅ Serve profile images statically
-app.use('/uploads', express.static(uploadDir));
-
-// ✅ Upload profile image endpoint
-app.post('/upload-profile-image', upload.single('profileImage'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ message: '❌ No file uploaded' });
-    }
-    const imageUrl = `http://localhost:${PORT}/uploads/${req.file.filename}`;
-    res.json({ success: true, imageUrl });
-});
-
 // ✅ Test API
 app.get("/", (req, res) => {
-    res.json({ message: "🟢 GPS Tracker Backend with Profile Upload Running!" });
+    res.json({ message: "🟢 GPS Tracker Backend (MongoDB) is Running!" });
 });
 
 // ✅ Save GPS Location (ESP32)
 app.get("/update_location", async (req, res) => {
+    console.log("🔍 Incoming Request Headers:", req.rawHeaders);
+    console.log("🔍 Incoming Request Query Params:", req.query);
+
     let { lat, lon } = req.query;
+
+    // ✅ Validate and Convert GPS Data
     lat = parseFloat(lat);
     lon = parseFloat(lon);
 
@@ -119,10 +91,9 @@ app.delete("/cleanup", async (req, res) => {
     try {
         const totalDocs = await GpsLocation.countDocuments();
         if (totalDocs > 100) {
-            const oldestEntries = await GpsLocation.find().sort({ timestamp: 1 }).limit(totalDocs - 100);
-            const idsToDelete = oldestEntries.map(doc => doc._id);
-            await GpsLocation.deleteMany({ _id: { $in: idsToDelete } });
-            console.log(`🗑️ Deleted ${totalDocs - 100} old records`);
+            const toDelete = totalDocs - 100;
+            await GpsLocation.deleteMany().sort({ timestamp: 1 }).limit(toDelete);
+            console.log(`🗑️ Deleted ${toDelete} old records`);
         }
         res.json({ message: "✅ Cleanup done if necessary" });
     } catch (error) {
