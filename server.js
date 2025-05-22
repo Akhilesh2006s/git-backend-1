@@ -2,19 +2,17 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
 const app = express();
-
-// ✅ Enable CORS for frontend & ESP32 requests
-const corsOptions = {
-    origin: "*", // Allow all origins (for debugging)
-    methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type"]
-};
-app.use(cors(corsOptions));
+app.use(cors({
+  origin: ['http://localhost:8081', 'exp://xra8ypw-sravanidasari-8081.exp.direct'],
+  credentials: true
+}));
 app.use(express.json());
 
-// ✅ Connect to MongoDB
+// ✅ Connect to MongoDB Atlas
 mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true
@@ -24,28 +22,90 @@ mongoose.connect(process.env.MONGO_URI, {
     console.error("❌ MongoDB Connection Error:", err);
     process.exit(1);
 });
-
+const userSchema = new mongoose.Schema({
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  role: { type: String, enum: ['student', 'faculty'], default: 'student' },
+  createdAt: { type: Date, default: Date.now }
+});
 // ✅ Define GPS Location Schema
 const gpsSchema = new mongoose.Schema({
+    busId: { type: String, required: true },
     lat: { type: Number, required: true },
     lon: { type: Number, required: true },
     timestamp: { type: Date, default: Date.now }
 });
-const GpsLocation = mongoose.model("GpsLocation", gpsSchema);
 
+const routeSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  routeName: { type: String, required: true },
+  busId: { type: String },
+  selectedAt: { type: Date, default: Date.now }
+});
+const User = mongoose.model("User", userSchema);
+const GpsLocation = mongoose.model("GpsLocation", gpsSchema);
+const BusRoute = mongoose.model("BusRoute", routeSchema);
+
+// JWT Secret
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const authenticate = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ error: "No token provided" });
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = await User.findById(decoded.userId);
+    next();
+  } catch (error) {
+    res.status(401).json({ error: "Invalid token" });
+  }
+};
 // ✅ Test API
 app.get("/", (req, res) => {
-    res.json({ message: "🟢 GPS Tracker Backend (MongoDB) is Running!" });
+    res.json({ message: "🟢 GPS Tracker Backend (MongoDB) is Running on Port 5000!" });
 });
+app.post("/register", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email.endsWith('@vitapstudent.ac.in') && !email.endsWith('@vitap.ac.in')) {
+      return res.status(400).json({ error: "Only VITAP emails allowed" });
+    }
+     const hashedPassword = await bcrypt.hash(password, 10);
+    const user = new User({
+      email,
+      password: hashedPassword,
+      role: email.endsWith('@vitap.ac.in') ? 'faculty' : 'student'
+    });
 
+    await user.save();
+    res.status(201).json({ message: "User created successfully" });
+  } catch (error) {
+    if (error.code === 11000) {
+      res.status(400).json({ error: "Email already exists" });
+    } else {
+      res.status(500).json({ error: error.message });
+    }
+  }
+});
+app.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '1d' });
+    res.json({ token, role: user.role });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 // ✅ Save GPS Location (ESP32)
 app.get("/update_location", async (req, res) => {
-    console.log("🔍 Incoming Request Headers:", req.rawHeaders);
-    console.log("🔍 Incoming Request Query Params:", req.query);
-
     let { lat, lon } = req.query;
-
-    // ✅ Validate and Convert GPS Data
     lat = parseFloat(lat);
     lon = parseFloat(lon);
 
@@ -56,7 +116,7 @@ app.get("/update_location", async (req, res) => {
     try {
         const newLocation = new GpsLocation({ lat, lon });
         await newLocation.save();
-        console.log(`📡 Location Saved: Lat=${lat}, Lon=${lon}`);
+        console.log(📡 Location Saved: Lat=${lat}, Lon=${lon});
         res.json({ success: true, message: "✅ Data Received", lat, lon });
     } catch (error) {
         console.error("❌ MongoDB Error:", error);
@@ -74,36 +134,33 @@ app.get("/get_location", async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+app.post("/save_route", authenticate, async (req, res) => {
+  try {
+    const { routeName, busId } = req.body;
+    const route = new BusRoute({
+      userId: req.user._id,
+      routeName,
+      busId
+    });
 
-// ✅ Get All GPS Locations (Route History)
-app.get("/get_all_locations", async (req, res) => {
-    try {
-        const allLocations = await GpsLocation.find().sort({ timestamp: -1 }).lean();
-        res.json(allLocations);
-    } catch (error) {
-        console.error("❌ MongoDB Error:", error);
-        res.status(500).json({ error: error.message });
-    }
+    await route.save();
+    res.json({ success: true, message: "Route saved successfully" });
+     } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-// ✅ Delete Old GPS Data (Keep Last 100 Entries)
-app.delete("/cleanup", async (req, res) => {
-    try {
-        const totalDocs = await GpsLocation.countDocuments();
-        if (totalDocs > 100) {
-            const toDelete = totalDocs - 100;
-            await GpsLocation.deleteMany().sort({ timestamp: 1 }).limit(toDelete);
-            console.log(`🗑️ Deleted ${toDelete} old records`);
-        }
-        res.json({ message: "✅ Cleanup done if necessary" });
-    } catch (error) {
-        console.error("❌ MongoDB Cleanup Error:", error);
-        res.status(500).json({ error: error.message });
-    }
+app.get("/get_routes", authenticate, async (req, res) => {
+  try {
+    const routes = await BusRoute.find({ userId: req.user._id }).sort({ selectedAt: -1 });
+    res.json(routes);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-// ✅ Start the Server
-const PORT = process.env.PORT || 2000;
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
+// ✅ Start the Server on Port 5000
+const PORT = 4000;
+app.listen(PORT, "0.0.0.0", () => {
+    console.log(🚀 Server running on http://192.168.1.3:${PORT});
 });
