@@ -110,11 +110,17 @@ app.delete("/cleanup", async (req, res) => {
 });
 
 // Record student scan
+// In your /scan route
 app.post("/scan", async (req, res) => {
     const { studentEmail } = req.body;
 
-    if (!studentEmail || !studentEmail.endsWith("@vitapstudent.ac.in")) {
-        return res.status(400).json({ error: "❌ Invalid student email" });
+    // Validate email pattern: name.rollnumber@vitapstudent.ac.in
+    const emailPattern = /^[a-z]+\.[0-9]{2}[a-z]{2,3}[0-9]+@vitapstudent\.ac\.in$/i;
+    
+    if (!studentEmail || !emailPattern.test(studentEmail)) {
+        return res.status(400).json({ 
+            error: "❌ Invalid student email. Must be in format: name.rollnumber@vitapstudent.ac.in" 
+        });
     }
 
     try {
