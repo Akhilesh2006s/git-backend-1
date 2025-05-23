@@ -111,15 +111,19 @@ app.delete("/cleanup", async (req, res) => {
 
 // Record student scan
 app.post("/scan", async (req, res) => {
+    console.log("📥 Scan request received:", req.body);
+
     const { studentEmail } = req.body;
 
     if (!studentEmail || !studentEmail.endsWith("@vitapstudent.ac.in")) {
+        console.log("❌ Invalid email:", studentEmail);
         return res.status(400).json({ error: "❌ Invalid student email" });
     }
 
     try {
         const scan = new StudentScan({ studentEmail });
         await scan.save();
+        console.log("✅ Scan saved:", scan);
         res.json({ message: "✅ Scan recorded successfully", scan });
     } catch (error) {
         console.error("❌ Scan save error:", error);
