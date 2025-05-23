@@ -5,140 +5,140 @@ const mongoose = require("mongoose");
 
 const app = express();
 
-// -------------------- CORS CONFIGURATION --------------------
+// CORS Setup — be careful with origin: "*" in production, restrict it accordingly
 const corsOptions = {
-  origin: "*", // ⚠️ In production, replace * with your frontend domain
-  methods: ["GET", "POST", "DELETE"],
-  allowedHeaders: ["Content-Type"],
+    origin: "*", // TODO: change this in production to your frontend URL
+    methods: ["GET", "POST", "DELETE"],
+    allowedHeaders: ["Content-Type"],
 };
 app.use(cors(corsOptions));
 
-// -------------------- MIDDLEWARE --------------------
+// Middleware to parse JSON bodies
 app.use(express.json());
 
-// -------------------- MONGODB CONNECTION --------------------
+// Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
 }).then(() => {
-  console.log("✅ Connected to MongoDB");
+    console.log("✅ Connected to MongoDB");
 }).catch((err) => {
-  console.error("❌ MongoDB Connection Error:", err);
-  process.exit(1);
+    console.error("❌ MongoDB Connection Error:", err);
+    process.exit(1);
 });
 
-// -------------------- MONGOOSE SCHEMAS --------------------
+// Define Mongoose schemas and models
+
 const gpsSchema = new mongoose.Schema({
-  lat: { type: Number, required: true },
-  lon: { type: Number, required: true },
-  timestamp: { type: Date, default: Date.now },
+    lat: { type: Number, required: true },
+    lon: { type: Number, required: true },
+    timestamp: { type: Date, default: Date.now },
 });
 const GpsLocation = mongoose.model("GpsLocation", gpsSchema);
 
 const scanSchema = new mongoose.Schema({
-  studentEmail: { type: String, required: true },
-  scannedAt: { type: Date, default: Date.now },
+    studentEmail: { type: String, required: true },
+    scannedAt: { type: Date, default: Date.now },
 });
 const StudentScan = mongoose.model("StudentScan", scanSchema);
 
-// -------------------- ROUTES --------------------
+// Routes
 
 // Root route
 app.get("/", (req, res) => {
-  res.json({ message: "🟢 GPS Tracker + Scanner Backend Running" });
+    res.json({ message: "🟢 GPS Tracker + Scanner Backend Running" });
 });
 
 // Save GPS location
 app.get("/update_location", async (req, res) => {
-  let { lat, lon } = req.query;
-  lat = parseFloat(lat);
-  lon = parseFloat(lon);
+    let { lat, lon } = req.query;
+    lat = parseFloat(lat);
+    lon = parseFloat(lon);
 
-  if (isNaN(lat) || isNaN(lon)) {
-    return res.status(400).json({ error: "❌ Invalid latitude or longitude" });
-  }
-
-  try {
-    const newLocation = new GpsLocation({ lat, lon });
-    await newLocation.save();
-    console.log(`📡 Location Saved: Lat=${lat}, Lon=${lon}`);
-    res.json({ success: true, message: "✅ Data Received", lat, lon });
-  } catch (error) {
-    console.error("❌ Error saving location:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Get latest GPS location
-app.get("/get_location", async (req, res) => {
-  try {
-    const lastLocation = await GpsLocation.findOne().sort({ timestamp: -1 }).lean();
-    res.json(lastLocation || { lat: 0, lon: 0 });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Get all GPS locations
-app.get("/get_all_locations", async (req, res) => {
-  try {
-    const allLocations = await GpsLocation.find().sort({ timestamp: -1 }).lean();
-    res.json(allLocations);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Cleanup old GPS records (keep only last 100)
-app.delete("/cleanup", async (req, res) => {
-  try {
-    const totalDocs = await GpsLocation.countDocuments();
-    if (totalDocs > 100) {
-      const toDelete = totalDocs - 100;
-      const oldDocs = await GpsLocation.find().sort({ timestamp: 1 }).limit(toDelete).select("_id");
-      const idsToDelete = oldDocs.map(doc => doc._id);
-      await GpsLocation.deleteMany({ _id: { $in: idsToDelete } });
-      console.log(`🗑️ Deleted ${toDelete} old records`);
+    if (isNaN(lat) || isNaN(lon)) {
+        return res.status(400).json({ error: "❌ Invalid latitude or longitude" });
     }
-    res.json({ message: "✅ Cleanup complete" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+
+    try {
+        const newLocation = new GpsLocation({ lat, lon });
+        await newLocation.save();
+        console.log(`📡 Location Saved: Lat=${lat}, Lon=${lon}`);
+        res.json({ success: true, message: "✅ Data Received", lat, lon });
+    } catch (error) {
+        console.error("❌ Error saving location:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get latest location
+app.get("/get_location", async (req, res) => {
+    try {
+        const lastLocation = await GpsLocation.findOne().sort({ timestamp: -1 }).lean();
+        res.json(lastLocation || { lat: 0, lon: 0 });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get all locations
+app.get("/get_all_locations", async (req, res) => {
+    try {
+        const allLocations = await GpsLocation.find().sort({ timestamp: -1 }).lean();
+        res.json(allLocations);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Delete old data — Keep only last 100 GPS location docs
+app.delete("/cleanup", async (req, res) => {
+    try {
+        const totalDocs = await GpsLocation.countDocuments();
+        if (totalDocs > 100) {
+            const toDelete = totalDocs - 100;
+            // Delete oldest documents (sort ascending by timestamp) — mongoose deleteMany + limit is tricky,
+            // so use a workaround with find ids and deleteMany with _id: {$in: ids}
+            const oldDocs = await GpsLocation.find().sort({ timestamp: 1 }).limit(toDelete).select("_id");
+            const idsToDelete = oldDocs.map(doc => doc._id);
+            await GpsLocation.deleteMany({ _id: { $in: idsToDelete } });
+            console.log(`🗑️ Deleted ${toDelete} old records`);
+        }
+        res.json({ message: "✅ Cleanup complete" });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Record student scan
 app.post("/scan", async (req, res) => {
-  console.log("📥 Scan request received:", req.body);
-  const { studentEmail } = req.body;
+    const { studentEmail } = req.body;
 
-  if (!studentEmail || !studentEmail.endsWith("@vitapstudent.ac.in")) {
-    console.log("❌ Invalid email:", studentEmail);
-    return res.status(400).json({ error: "❌ Invalid student email" });
-  }
+    if (!studentEmail || !studentEmail.endsWith("@vitapstudent.ac.in")) {
+        return res.status(400).json({ error: "❌ Invalid student email" });
+    }
 
-  try {
-    const scan = new StudentScan({ studentEmail });
-    await scan.save();
-    console.log("✅ Scan saved:", scan);
-    res.json({ message: "✅ Scan recorded successfully", scan });
-  } catch (error) {
-    console.error("❌ Scan save error:", error);
-    res.status(500).json({ error: error.message });
-  }
+    try {
+        const scan = new StudentScan({ studentEmail });
+        await scan.save();
+        res.json({ message: "✅ Scan recorded successfully", scan });
+    } catch (error) {
+        console.error("❌ Scan save error:", error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
-// Faculty route to get all scans
+// Faculty route: get all scans
 app.get("/faculty/scans", async (req, res) => {
-  try {
-    const scans = await StudentScan.find().sort({ scannedAt: -1 }).lean();
-    res.json(scans);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+    try {
+        const scans = await StudentScan.find().sort({ scannedAt: -1 }).lean();
+        res.json(scans);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
-// -------------------- START SERVER --------------------
+// Start server
 const PORT = process.env.PORT || 2000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`🚀 Server running on port ${PORT}`);
 });
