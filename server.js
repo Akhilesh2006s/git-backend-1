@@ -5,10 +5,10 @@ const mongoose = require("mongoose");
 
 const app = express();
 
-// ✅ Enable CORS for frontend & ESP32 requests
+// ✅ CORS Setup
 const corsOptions = {
-    origin: "*", // Allow all origins (for debugging)
-    methods: ["GET", "POST"],
+    origin: "*", // For development; restrict in production
+    methods: ["GET", "POST", "DELETE"],
     allowedHeaders: ["Content-Type"]
 };
 app.use(cors(corsOptions));
@@ -25,7 +25,7 @@ mongoose.connect(process.env.MONGO_URI, {
     process.exit(1);
 });
 
-// ✅ Define GPS Location Schema
+// ✅ Schemas and Models
 const gpsSchema = new mongoose.Schema({
     lat: { type: Number, required: true },
     lon: { type: Number, required: true },
@@ -33,19 +33,22 @@ const gpsSchema = new mongoose.Schema({
 });
 const GpsLocation = mongoose.model("GpsLocation", gpsSchema);
 
-// ✅ Test API
+const scanSchema = new mongoose.Schema({
+    studentEmail: { type: String, required: true },
+    scannedAt: { type: Date, default: Date.now }
+});
+const StudentScan = mongoose.model("StudentScan", scanSchema);
+
+// ✅ Routes
+
+// Root route
 app.get("/", (req, res) => {
-    res.json({ message: "🟢 GPS Tracker Backend (MongoDB) is Running!" });
+    res.json({ message: "🟢 GPS Tracker + Scanner Backend Running" });
 });
 
-// ✅ Save GPS Location (ESP32)
+// Save GPS location
 app.get("/update_location", async (req, res) => {
-    console.log("🔍 Incoming Request Headers:", req.rawHeaders);
-    console.log("🔍 Incoming Request Query Params:", req.query);
-
     let { lat, lon } = req.query;
-
-    // ✅ Validate and Convert GPS Data
     lat = parseFloat(lat);
     lon = parseFloat(lon);
 
@@ -59,34 +62,32 @@ app.get("/update_location", async (req, res) => {
         console.log(`📡 Location Saved: Lat=${lat}, Lon=${lon}`);
         res.json({ success: true, message: "✅ Data Received", lat, lon });
     } catch (error) {
-        console.error("❌ MongoDB Error:", error);
+        console.error("❌ Error saving location:", error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// ✅ Get Latest GPS Location
+// Get latest location
 app.get("/get_location", async (req, res) => {
     try {
         const lastLocation = await GpsLocation.findOne().sort({ timestamp: -1 }).lean();
         res.json(lastLocation || { lat: 0, lon: 0 });
     } catch (error) {
-        console.error("❌ MongoDB Error:", error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// ✅ Get All GPS Locations (Route History)
+// Get all locations
 app.get("/get_all_locations", async (req, res) => {
     try {
         const allLocations = await GpsLocation.find().sort({ timestamp: -1 }).lean();
         res.json(allLocations);
     } catch (error) {
-        console.error("❌ MongoDB Error:", error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// ✅ Delete Old GPS Data (Keep Last 100 Entries)
+// Delete old data
 app.delete("/cleanup", async (req, res) => {
     try {
         const totalDocs = await GpsLocation.countDocuments();
@@ -95,14 +96,41 @@ app.delete("/cleanup", async (req, res) => {
             await GpsLocation.deleteMany().sort({ timestamp: 1 }).limit(toDelete);
             console.log(`🗑️ Deleted ${toDelete} old records`);
         }
-        res.json({ message: "✅ Cleanup done if necessary" });
+        res.json({ message: "✅ Cleanup complete" });
     } catch (error) {
-        console.error("❌ MongoDB Cleanup Error:", error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// ✅ Start the Server
+// ✅ Student scan route
+app.post("/scan", async (req, res) => {
+    const { studentEmail } = req.body;
+
+    if (!studentEmail || !studentEmail.endsWith("@vitapstudent.ac.in")) {
+        return res.status(400).json({ error: "❌ Invalid student email" });
+    }
+
+    try {
+        const scan = new StudentScan({ studentEmail });
+        await scan.save();
+        res.json({ message: "✅ Scan recorded successfully", scan });
+    } catch (error) {
+        console.error("❌ Scan save error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ✅ Faculty view scans
+app.get("/faculty/scans", async (req, res) => {
+    try {
+        const scans = await StudentScan.find().sort({ scannedAt: -1 }).lean();
+        res.json(scans);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ✅ Start server
 const PORT = process.env.PORT || 2000;
 app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
