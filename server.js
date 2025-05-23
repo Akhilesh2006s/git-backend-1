@@ -5,19 +5,21 @@ const mongoose = require("mongoose");
 
 const app = express();
 
-// ✅ CORS Setup
+// CORS Setup — be careful with origin: "*" in production, restrict it accordingly
 const corsOptions = {
-    origin: "*", // For development; restrict in production
+    origin: "*", // TODO: change this in production to your frontend URL
     methods: ["GET", "POST", "DELETE"],
-    allowedHeaders: ["Content-Type"]
+    allowedHeaders: ["Content-Type"],
 };
 app.use(cors(corsOptions));
+
+// Middleware to parse JSON bodies
 app.use(express.json());
 
-// ✅ Connect to MongoDB
+// Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
-    useUnifiedTopology: true
+    useUnifiedTopology: true,
 }).then(() => {
     console.log("✅ Connected to MongoDB");
 }).catch((err) => {
@@ -25,21 +27,22 @@ mongoose.connect(process.env.MONGO_URI, {
     process.exit(1);
 });
 
-// ✅ Schemas and Models
+// Define Mongoose schemas and models
+
 const gpsSchema = new mongoose.Schema({
     lat: { type: Number, required: true },
     lon: { type: Number, required: true },
-    timestamp: { type: Date, default: Date.now }
+    timestamp: { type: Date, default: Date.now },
 });
 const GpsLocation = mongoose.model("GpsLocation", gpsSchema);
 
 const scanSchema = new mongoose.Schema({
     studentEmail: { type: String, required: true },
-    scannedAt: { type: Date, default: Date.now }
+    scannedAt: { type: Date, default: Date.now },
 });
 const StudentScan = mongoose.model("StudentScan", scanSchema);
 
-// ✅ Routes
+// Routes
 
 // Root route
 app.get("/", (req, res) => {
@@ -87,13 +90,17 @@ app.get("/get_all_locations", async (req, res) => {
     }
 });
 
-// Delete old data
+// Delete old data — Keep only last 100 GPS location docs
 app.delete("/cleanup", async (req, res) => {
     try {
         const totalDocs = await GpsLocation.countDocuments();
         if (totalDocs > 100) {
             const toDelete = totalDocs - 100;
-            await GpsLocation.deleteMany().sort({ timestamp: 1 }).limit(toDelete);
+            // Delete oldest documents (sort ascending by timestamp) — mongoose deleteMany + limit is tricky,
+            // so use a workaround with find ids and deleteMany with _id: {$in: ids}
+            const oldDocs = await GpsLocation.find().sort({ timestamp: 1 }).limit(toDelete).select("_id");
+            const idsToDelete = oldDocs.map(doc => doc._id);
+            await GpsLocation.deleteMany({ _id: { $in: idsToDelete } });
             console.log(`🗑️ Deleted ${toDelete} old records`);
         }
         res.json({ message: "✅ Cleanup complete" });
@@ -102,7 +109,7 @@ app.delete("/cleanup", async (req, res) => {
     }
 });
 
-// ✅ Student scan route
+// Record student scan
 app.post("/scan", async (req, res) => {
     const { studentEmail } = req.body;
 
@@ -120,7 +127,7 @@ app.post("/scan", async (req, res) => {
     }
 });
 
-// ✅ Faculty view scans
+// Faculty route: get all scans
 app.get("/faculty/scans", async (req, res) => {
     try {
         const scans = await StudentScan.find().sort({ scannedAt: -1 }).lean();
@@ -130,7 +137,7 @@ app.get("/faculty/scans", async (req, res) => {
     }
 });
 
-// ✅ Start server
+// Start server
 const PORT = process.env.PORT || 2000;
 app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
