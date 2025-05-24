@@ -41,6 +41,12 @@ const scanSchema = new mongoose.Schema({
     scannedAt: { type: Date, default: Date.now },
 });
 const StudentScan = mongoose.model("StudentScan", scanSchema);
+const userSchema = new mongoose.Schema({
+    email: { type: String, required: true, unique: true },
+    busRoute: { type: String, required: true },
+    registeredAt: { type: Date, default: Date.now },
+});
+const User = mongoose.model("User", userSchema);
 
 // Routes
 
@@ -62,7 +68,7 @@ app.get("/update_location", async (req, res) => {
     try {
         const newLocation = new GpsLocation({ lat, lon });
         await newLocation.save();
-        console.log(`📡 Location Saved: Lat=${lat}, Lon=${lon}`);
+        console.log(📡 Location Saved: Lat=${lat}, Lon=${lon});
         res.json({ success: true, message: "✅ Data Received", lat, lon });
     } catch (error) {
         console.error("❌ Error saving location:", error);
@@ -101,7 +107,7 @@ app.delete("/cleanup", async (req, res) => {
             const oldDocs = await GpsLocation.find().sort({ timestamp: 1 }).limit(toDelete).select("_id");
             const idsToDelete = oldDocs.map(doc => doc._id);
             await GpsLocation.deleteMany({ _id: { $in: idsToDelete } });
-            console.log(`🗑️ Deleted ${toDelete} old records`);
+            console.log(🗑 Deleted ${toDelete} old records);
         }
         res.json({ message: "✅ Cleanup complete" });
     } catch (error) {
@@ -132,6 +138,28 @@ app.post("/scan", async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+app.post("/register", async (req, res) => {
+    const { email, busRoute } = req.body;
+
+    if (!email || !busRoute) {
+        return res.status(400).json({ error: "❌ Email and busRoute are required" });
+    }
+
+    try {
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({ error: "❌ User already registered" });
+        }
+
+        const newUser = new User({ email, busRoute });
+        await newUser.save();
+        res.json({ message: "✅ User registered successfully", user: newUser });
+    } catch (error) {
+        console.error("❌ Registration error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 
 // Faculty route: get all scans
 app.get("/faculty/scans", async (req, res) => {
@@ -146,5 +174,5 @@ app.get("/faculty/scans", async (req, res) => {
 // Start server
 const PORT = process.env.PORT || 2000;
 app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(🚀 Server running on port ${PORT});
 });
