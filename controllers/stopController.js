@@ -11,17 +11,19 @@ exports.getStopsByRoute = async (req, res) => {
 };
 
 exports.logStopTime = async (req, res) => {
-    const { route, stopName, lat, lon } = req.body;
-    if (!route || !stopName || !lat || !lon) return res.status(400).json({ error: "Missing data" });
-
-    try {
-        const log = new GpsLocation({ route, stopName, lat, lon });
-        await log.save();
-        res.json({ success: true, stop: stopName, time: log.timestamp });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-};
+   const { route, stopName, lat, lon, status } = req.body;
+      if (!route || !stopName || !lat || !lon) {
+          return res.status(400).json({ error: "Missing data" });
+      }
+  
+      try {
+          const log = new GpsLocation({ route, stopName, lat, lon, status }); // ✅ include status here
+          await log.save();
+          res.json({ success: true, stop: stopName, time: log.timestamp, status: log.status }); // ✅ optionally return it
+      } catch (err) {
+          res.status(500).json({ error: err.message });
+      }
+  };
 
 exports.getRouteHistory = async (req, res) => {
     try {
