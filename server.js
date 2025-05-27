@@ -20,8 +20,7 @@ mongoose.connect(process.env.MONGO_URI, {
 // Routes
 app.use("/api", require("./routes/index"));
 
-const attendanceRoutes = require('./routes/attendance');
-app.use('/api/attendance', attendanceRoutes);
+
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, "0.0.0.0", () => {
