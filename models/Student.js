@@ -1,11 +1,30 @@
 const mongoose = require('mongoose');
 
-const StudentSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    regNo: { type: String, required: true, unique: true },
-    barcode: { type: String, required: true, unique: true },
-    routeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Route' },
-    createdAt: { type: Date, default: Date.now }
+const studentSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true
+  },
+  regNo: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  barcode: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  route: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Route'
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  }
+}, {
+  timestamps: true
 });
 
-module.exports = mongoose.model('Student', StudentSchema);
+module.exports = mongoose.model('Student', studentSchema);

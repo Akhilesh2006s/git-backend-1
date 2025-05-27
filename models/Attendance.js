@@ -1,12 +1,37 @@
 const mongoose = require('mongoose');
 
-const AttendanceSchema = new mongoose.Schema({
-    studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
-    facultyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Faculty' },
-    busId: { type: mongoose.Schema.Types.ObjectId, ref: 'Bus' },
-    stopId: { type: mongoose.Schema.Types.ObjectId, ref: 'RouteStop' },
-    timestamp: { type: Date, default: Date.now },
-    type: { type: String, enum: ['student', 'faculty'], required: true }
+const attendanceSchema = new mongoose.Schema({
+  student: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Student',
+    required: true
+  },
+  faculty: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Faculty',
+    required: true
+  },
+  bus: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Bus',
+    required: true
+  },
+  timestamp: {
+    type: Date,
+    default: Date.now,
+    required: true
+  },
+  status: {
+    type: String,
+    enum: ['present', 'absent', 'late'],
+    default: 'present'
+  }
+}, {
+  timestamps: true
 });
 
-module.exports = mongoose.model('Attendance', AttendanceSchema);
+// Index for faster queries
+attendanceSchema.index({ faculty: 1, timestamp: -1 });
+attendanceSchema.index({ student: 1, timestamp: -1 });
+
+module.exports = mongoose.model('Attendance', attendanceSchema);
