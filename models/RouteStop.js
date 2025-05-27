@@ -5,7 +5,9 @@ const stopSchema = new mongoose.Schema({
     stopName: String,
     lat: Number,
     lon: Number,
-    scheduledTime: String
+    scheduledTime: String,
+    status: String 
+
 });
 
 module.exports = mongoose.model("RouteStop", stopSchema);

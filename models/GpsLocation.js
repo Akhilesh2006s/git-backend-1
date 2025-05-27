@@ -5,6 +5,7 @@ const gpsSchema = new mongoose.Schema({
     lat: Number,
     lon: Number,
     stopName: String, // optional if only tracking
+    status: String,
     timestamp: { type: Date, default: Date.now }
 });
 
