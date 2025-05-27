@@ -1,17 +1,20 @@
 const GpsLocation = require("../models/GpsLocation");
 
 exports.updateLocation = async (req, res) => {
-    const { lat, lon, route } = req.query;
-    if (!lat || !lon || !route) return res.status(400).json({ error: "Missing lat, lon, or route" });
+    const { route, stopName, lat, lon, status } = req.body;
+    if (!route || !stopName || !lat || !lon) {
+        return res.status(400).json({ error: "Missing data" });
+    }
 
     try {
-        const newLocation = new GpsLocation({ lat, lon, route });
-        await newLocation.save();
-        res.json({ success: true, lat, lon, route });
+        const log = new GpsLocation({ route, stopName, lat, lon, status }); // ✅ include status here
+        await log.save();
+        res.json({ success: true, stop: stopName, time: log.timestamp, status: log.status }); // ✅ optionally return it
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 };
+
 
 exports.getLatestLocation = async (req, res) => {
     try {

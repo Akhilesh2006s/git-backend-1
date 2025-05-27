@@ -6,7 +6,7 @@ const stopSchema = new mongoose.Schema({
     lat: Number,
     lon: Number,
     scheduledTime: String,
-    status: String 
+    status: { type: String, default: "pending" } 
 
 });
 
