@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const stopController = require("../controllers/stopController");
+const stopController = require("../.dist/controllers/stopController");
 
 router.get("/:route", stopController.getStopsByRoute);
 router.post("/log_stop_time", stopController.logStopTime);

@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const gpsController = require("../controllers/gpsController");
+const gpsController = require("../.dist/controllers/gpsController");
 
 router.get("/update_location", gpsController.updateLocation);
 router.get("/latest_location/:route", gpsController.getLatestLocation);
