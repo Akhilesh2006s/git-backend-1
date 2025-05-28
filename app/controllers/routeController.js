@@ -1,4 +1,4 @@
-const RouteStop = require("../models/RouteStop");
+const RouteStop = require("../../models/RouteStop");
 
 exports.getStopsByRoute = async (req, res) => {
     try {
