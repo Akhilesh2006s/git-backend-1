@@ -1,7 +1,7 @@
 // dist/controllers/attendanceController.js
-const Student = require("../../models/Student");
-const Attendance = require("../../models/Attendance");
-const Faculty = require("../../models/Faculty");
+const Student = require("../models/Student");
+const Attendance = require("../models/Attendance");
+const Faculty = require("../models/Faculty");
 
 exports.markStudentAttendance = async (req, res) => {
   try {
