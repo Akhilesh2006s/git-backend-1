@@ -5,9 +5,7 @@ const stopSchema = new mongoose.Schema({
     stopName: String,
     lat: Number,
     lon: Number,
-    scheduledTime: String,
-    status: { type: String, default: "pending" } 
-
+    scheduledTime: String
 });
 
 module.exports = mongoose.model("RouteStop", stopSchema);
