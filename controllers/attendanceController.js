@@ -1,64 +1,61 @@
 const Attendance = require('../models/Attendance');
 const Student = require('../models/Student');
 
+const markStudentAttendance = async (req, res) => {
+  // Dummy for manual mark route (can be updated later)
+  res.json({ success: true, message: "Manual mark logic here." });
+};
+
+const getAttendanceByFaculty = async (req, res) => {
+  try {
+    const records = await Attendance.find({ facultyId: req.params.facultyId }).sort({ timestamp: -1 });
+    res.json({ success: true, data: records });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error fetching attendance' });
+  }
+};
+
 const markAttendanceByBarcode = async (req, res) => {
   try {
-    const { barcode } = req.body;
-    const facultyId = req.user?.id; // From auth token
+    const { barcode, facultyId, timestamp } = req.body;
 
-    if (!barcode) {
-      return res.status(400).json({ success: false, message: 'Barcode is required' });
+    if (!barcode || !facultyId) {
+      return res.status(400).json({ success: false, message: 'Barcode and facultyId are required' });
     }
 
-    if (!facultyId) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const student = await Student.findOne({ regNo: barcode });
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
     }
 
-    // Clean and validate barcode format (e.g., 23BCE7426)
-    const regNo = barcode.trim().toUpperCase();
-    
-    if (!/^\d{2}[A-Z]{3}\d{4}$/.test(regNo)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Invalid student ID format' 
-      });
-    }
-
-    // Verify student exists (but don't return their details)
-    const studentExists = await Student.exists({ regNo });
-    if (!studentExists) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Student ID not found' 
-      });
-    }
-
-    // Create minimal attendance record
     const attendance = new Attendance({
-      regNo,
+      regNo: barcode,
       facultyId,
-      timestamp: new Date(),
-      status: 'present'
+      timestamp,
+      status: 'present',
+      student: {
+        name: student.name,
+        regNo: student.regNo,
+        department: student.department
+      }
     });
 
     await attendance.save();
 
     res.status(201).json({
       success: true,
-      message: 'Attendance recorded',
-      regNo // Only return the ID back
+      message: 'Attendance marked successfully',
+      attendance,
+      student
     });
-
   } catch (error) {
     console.error("Error:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Attendance recording failed' 
-    });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// Export only what's needed
 module.exports = {
+  markStudentAttendance,
+  getAttendanceByFaculty,
   markAttendanceByBarcode
 };
