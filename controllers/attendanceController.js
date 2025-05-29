@@ -31,6 +31,7 @@ const markAttendanceByBarcode = async (req, res) => {
 
     const attendance = new Attendance({
       regNo: barcode,
+      facultyId,
       timestamp,
       status: 'present',
       student: {
