@@ -18,8 +18,9 @@ const getAttendanceByFaculty = async (req, res) => {
 const markAttendanceByBarcode = async (req, res) => {
   try {
     const { barcode, timestamp } = req.body;
+    const facultyId = req.user?.id || req.body.facultyId; // fallback if you're not using auth middleware
 
-    if (!barcode) {
+    if (!barcode || !facultyId) {
       return res.status(400).json({ success: false, message: 'Barcode or facultyId missing' });
     }
 
