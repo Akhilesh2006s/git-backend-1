@@ -8,4 +8,5 @@ const gpsSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model("GpsLocation", gpsSchema);
+// Explicitly set collection name to match MongoDB
+module.exports = mongoose.model("GpsLocation", gpsSchema, "gpslocations");

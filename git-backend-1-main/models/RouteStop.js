@@ -8,4 +8,5 @@ const stopSchema = new mongoose.Schema({
     scheduledTime: String
 });
 
-module.exports = mongoose.model("RouteStop", stopSchema);
+// Explicitly set collection name to match MongoDB
+module.exports = mongoose.model("RouteStop", stopSchema, "routestops");
