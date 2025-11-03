@@ -4,9 +4,20 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 
 const app = express();
+
+// Basic middleware
 app.use(cors());
 app.use(express.json());
 
+// 🧹 Disable caching — always serve fresh data
+app.use((req, res, next) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    next();
+});
+
+// 🧠 MongoDB Connection
 mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
@@ -19,7 +30,7 @@ mongoose.connect(process.env.MONGO_URI, {
     process.exit(1);
 });
 
-// Request logging middleware for API routes
+// 🧾 Request logger for debugging API hits
 app.use((req, res, next) => {
     if (req.path.startsWith('/api')) {
         console.log(`[${new Date().toLocaleTimeString()}] ${req.method} ${req.path}`);
@@ -27,10 +38,10 @@ app.use((req, res, next) => {
     next();
 });
 
-// API Routes (must come before static files)
+// ✅ API Routes
 app.use("/api", require("./routes/index"));
 
-// Health check endpoint
+// 🩺 Health check
 app.get("/api/health", (req, res) => {
     res.json({ 
         status: "ok", 
@@ -39,11 +50,19 @@ app.get("/api/health", (req, res) => {
     });
 });
 
-// Serve static files from public directory (after API routes)
+// 🔄 Version endpoint — helps confirm redeploys
+app.get("/api/version", (req, res) => {
+    res.json({
+        version: "v1.0.1", // manually update when redeploying
+        deployedAt: new Date().toISOString()
+    });
+});
+
+// 🗂️ Static files (for frontend)
 app.use(express.static('public'));
 
+// 🚀 Start server
 const PORT = process.env.PORT || 4000;
-
 app.listen(PORT, "0.0.0.0", () => {
     const url = process.env.RAILWAY_PUBLIC_DOMAIN 
         ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
@@ -51,4 +70,3 @@ app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📍 Access your app at: ${url}`);
 });
-
